@@ -1,7 +1,8 @@
 import csv
-from django.core.management.base import BaseCommand
-from main.models import Question
 import sys
+from django.core.management.base import BaseCommand
+from main.db import questions_col
+
 csv.field_size_limit(sys.maxsize)
 class Command(BaseCommand):
     help = 'Import questions from a CSV file'
@@ -10,9 +11,9 @@ class Command(BaseCommand):
         with open('/Users/shauryajain/root_19/compelted.csv', 'r') as file:  # Replace with your CSV file path
             reader = csv.DictReader(file)
             for row in reader:
-                Question.objects.update_or_create(
-                    question_id=row['QuestionID'],
-                    defaults={
+                questions_col.update_one(
+                    {'question_id': row['QuestionID']},
+                    {'$set': {
                         'session_code': row['SessionCode'],
                         'session': row['Session'],
                         'year': int(row['Year']),
@@ -23,6 +24,6 @@ class Command(BaseCommand):
                         'extracted_text': row['ExtractedText'],
                         'image_base64': row['ImageBase64'],
                         'answer': row['Answer'],
-                    },
-                )
-        self.stdout.write(self.style.SUCCESS('Successfully imported data!'))
+                    }},
+                    upsert=True
+                )        self.stdout.write(self.style.SUCCESS('Successfully imported data!'))

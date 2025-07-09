@@ -4,7 +4,8 @@ from django.contrib import messages
 from django.contrib.sessions.models import Session
 from django.views.decorators.csrf import csrf_exempt
 
-from .models import Question, User
+from .db import questions_col, users_col, user_activity_col, get_next_user_id
+from types import SimpleNamespace
 
 def register(request):
     """Handle user registration."""
@@ -21,20 +22,20 @@ def register(request):
             messages.error(request, "Passwords do not match.")
             return redirect('register')
 
-        # Check if user already exists
-        if User.objects.filter(email=email).exists():
+        # Check if user already exists in the users collection
+        if users_col.find_one({'email': email}):
             messages.error(request, "Email is already registered.")
             return redirect('register')
 
-        # Save the user to the database
-        user = User(
-            name=name,
-            email=email,
-            password=password,  # Store raw password (not secure for production)
-            role=role,
-            school=school
-        )
-        user.save()
+        # Insert the user document into MongoDB
+        users_col.insert_one({
+            'user_id': get_next_user_id(),
+            'name': name,
+            'email': email,
+            'password': password,  # Store raw password (not secure for production)
+            'role': role,
+            'school': school
+        })
         messages.success(request, "Registration successful! Please log in.")
         return redirect('login')
 
@@ -54,46 +55,42 @@ def logout_view(request):
     
     return redirect('login')
 def home(request):
-    """Render the home page."""
-    total_questions = Question.objects.count()  # Get total number of questions
+    """Render the home page with the question count from MongoDB."""
+    total_questions = questions_col.count_documents({})
     return render(request, 'home.html', {'total_questions': total_questions})
 
 def login_view(request):
-    """Handle login."""
+    """Handle login using the users collection."""
     if request.method == 'POST':
         email = request.POST['email']
         password = request.POST['password']
-        try:
-            user = User.objects.get(email=email, password=password)
-            request.session['user_name'] = user.name  # Store user name in session
-            messages.success(request, f"Welcome back, {user.name}!")
-            return redirect('home')  # Redirect to home page on success
-        except User.DoesNotExist:
-            messages.error(request, "Invalid email or password.")
-            return redirect('login')
+        user = users_col.find_one({'email': email, 'password': password})
+        if user:
+            request.session['user_name'] = user['name']
+            messages.success(request, f"Welcome back, {user['name']}!")
+            return redirect('home')
+        messages.error(request, "Invalid email or password.")
+        return redirect('login')
 
     return render(request, 'login.html')
 def question_bank(request):
     """Render the initial page with session codes."""
-    session_codes = Question.objects.values_list('session_code', flat=True).distinct()
+    session_codes = questions_col.distinct('session_code')
     return render(request, 'question_bank.html', {'session_codes': session_codes})
-    print(session_codes)
 
 def get_subtopics(request):
     """Return subtopics for a given session code."""
     session_code = request.GET.get('session_code')
     if not session_code:
         return JsonResponse({'error': 'Session code is required'}, status=400)
-    
-    subtopics = Question.objects.filter(session_code=session_code).values_list('subtopic', flat=True).distinct()
+
+    subtopics = questions_col.distinct('subtopic', {'session_code': session_code})
     if not subtopics:
         return JsonResponse({'error': 'No subtopics found for this session code'}, status=404)
 
     return JsonResponse({'subtopics': list(subtopics)})
 
 import random
-from django.shortcuts import render
-from .models import Question
 
 def practice_questions(request):
     """Render the practice questions page with questions in random order."""
@@ -103,13 +100,11 @@ def practice_questions(request):
     if not session_code or not subtopic:
         return render(request, 'error.html', {'message': 'Session code and subtopic are required'})
 
-    # Fetch the questions based on session code and subtopic
-    questions = list(Question.objects.filter(session_code=session_code, subtopic=subtopic))
-
-    # Shuffle the questions to randomize the order
-    random.shuffle(questions)
-
-    # Return the randomized questions to the template
+    # Fetch questions from MongoDB matching the filters
+    docs = list(questions_col.find({'session_code': session_code, 'subtopic': subtopic}))
+    random.shuffle(docs)
+    # Convert dicts to simple objects for template compatibility
+    questions = [SimpleNamespace(**doc) for doc in docs]
     return render(request, 'practice_questions.html', {'questions': questions})
 
 from django.views.decorators.csrf import csrf_exempt
@@ -118,7 +113,7 @@ from django.views.decorators.csrf import csrf_exempt
 def check_answer(request):
     question_id = request.POST.get('question_id')
     selected_answer = request.POST.get('selected_answer')
-    question = Question.objects.get(question_id=question_id)
-    is_correct = question.answer == selected_answer
+    doc = questions_col.find_one({'question_id': question_id})
+    is_correct = doc and doc.get('answer') == selected_answer
     return JsonResponse({'is_correct': is_correct})
 
