@@ -2,6 +2,8 @@
 
 A web-based quiz application built with Django that allows users to register, log in, practice questions, and track progress. This project features a dynamic and user-friendly interface, including a hero section, session-based authentication, and animated feedback.
 
+This version uses **MongoDB** for data storage instead of the default SQLite database. All data is stored in MongoDB collections and accessed via `pymongo`.
+
 ## Features
 
 - **User Authentication**:
@@ -24,7 +26,8 @@ Make sure you have the following installed:
 
 - Python 3.x
 - Django 4.x
-- SQLite (default database for Django)
+- MongoDB server (or Atlas cluster)
+- pymongo
 
 ## Installation
 
