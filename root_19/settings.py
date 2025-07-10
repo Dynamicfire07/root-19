@@ -86,7 +86,7 @@ DATABASES = {
 }
 
 # MongoDB configuration. The relational DATABASES setting above is kept for
-MONGO_URI = os.getenv('MONGO_URI', 'mongodb+srv://shauryajain377:root19@root19.4ofompm.mongodb.net/?retryWrites=true&w=majority&appName=root19')
+MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017')
 MONGO_DB_NAME = os.getenv('MONGO_DB_NAME', 'root19')
 
 

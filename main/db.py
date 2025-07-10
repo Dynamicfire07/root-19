@@ -2,7 +2,7 @@ from pymongo import MongoClient
 from django.conf import settings
 
 # Initialize MongoDB client and expose commonly used collections.
-client = MongoClient(settings.MONGO_URI)
+client = MongoClient(settings.MONGO_URI, connect=False)
 db = client[settings.MONGO_DB_NAME]
 
 # Collections in MongoDB correspond to tables in SQL.

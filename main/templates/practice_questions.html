@@ -172,6 +172,12 @@
 </head>
 <body class="bg-light">
     {% include 'navbar.html' %}
+    <!-- Loading overlay -->
+    <div id="loading-spinner" class="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center bg-light" style="z-index: 1050;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
     <div class="container mt-5">
         <h1 class="text-center mb-4">Practice Questions</h1>
         <div id="question-container" data-session-code="{{ session_code }}" data-subtopic="{{ subtopic }}">
@@ -242,6 +248,7 @@
         let subtopic = $('#question-container').data('subtopic');
         let questions = $('.question');
         questions.hide().eq(currentIndex).show();
+        $('#loading-spinner').fadeOut();
 
         function collectIds() {
             return $('.question').map(function () { return $(this).data('question-id'); }).get();
@@ -259,13 +266,14 @@
             if (loading) return;
             if (questions.length - currentIndex <= 3) {
                 loading = true;
+                $('#loading-spinner').show();
                 $.get('/fetch-questions/', {
                     session_code: sessionCode,
                     subtopic: subtopic,
                     exclude: collectIds()
                 }).done(function (data) {
                     addQuestionsToDOM(data.questions);
-                }).always(function () { loading = false; });
+                }).always(function () { loading = false; $('#loading-spinner').fadeOut(); });
             }
         }
 

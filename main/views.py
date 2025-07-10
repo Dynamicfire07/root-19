@@ -6,7 +6,6 @@ from django.views.decorators.csrf import csrf_exempt
 
 from .db import questions_col, users_col, user_activity_col, get_next_user_id
 from types import SimpleNamespace
-import random
 
 def register(request):
     """Handle user registration."""
@@ -91,16 +90,16 @@ def get_subtopics(request):
 
     return JsonResponse({'subtopics': list(subtopics)})
 
-import random
-
 def get_random_questions(session_code, subtopic, exclude=None, limit=10):
-    """Helper to fetch a random subset of questions."""
-    query = {'session_code': session_code, 'subtopic': subtopic}
+    """Fetch a random subset of questions using MongoDB's $sample stage."""
+    match_stage = {'session_code': session_code, 'subtopic': subtopic}
     if exclude:
-        query['question_id'] = {'$nin': exclude}
-    docs = list(questions_col.find(query))
-    random.shuffle(docs)
-    return docs[:limit]
+        match_stage['question_id'] = {'$nin': exclude}
+    pipeline = [
+        {'$match': match_stage},
+        {'$sample': {'size': limit}},
+    ]
+    return list(questions_col.aggregate(pipeline))
 
 
 def practice_questions(request):
