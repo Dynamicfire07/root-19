@@ -36,3 +36,19 @@ class FetchQuestionsTest(TestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertEqual(len(data['questions']), 10)
+
+    def test_exclude_parameter(self):
+        first = self.client.get('/fetch-questions/', {
+            'session_code': 'S1',
+            'subtopic': 'T1',
+            'limit': 5
+        }).json()['questions']
+        exclude = ','.join(q['question_id'] for q in first)
+        second = self.client.get('/fetch-questions/', {
+            'session_code': 'S1',
+            'subtopic': 'T1',
+            'exclude': exclude,
+            'limit': 5
+        }).json()['questions']
+        ids = {q['question_id'] for q in second}
+        self.assertTrue(not ids.intersection(set(exclude.split(','))))

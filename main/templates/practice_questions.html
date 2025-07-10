@@ -199,6 +199,9 @@
             </div>
             {% endfor %}
         </div>
+        <div id="loading-bar" class="progress my-3" style="display: none; height: 4px;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+        </div>
         <div class="text-center mt-4">
             <button id="prev-btn" class="btn btn-secondary me-3">Previous</button>
             <button id="next-btn" class="btn btn-primary">Next</button>
@@ -259,13 +262,17 @@
             if (loading) return;
             if (questions.length - currentIndex <= 3) {
                 loading = true;
+                $('#loading-bar').show();
                 $.get('/fetch-questions/', {
                     session_code: sessionCode,
                     subtopic: subtopic,
                     exclude: collectIds()
                 }).done(function (data) {
                     addQuestionsToDOM(data.questions);
-                }).always(function () { loading = false; });
+                }).always(function () {
+                    loading = false;
+                    $('#loading-bar').hide();
+                });
             }
         }
 
