@@ -90,22 +90,56 @@ def get_subtopics(request):
 
     return JsonResponse({'subtopics': list(subtopics)})
 
-import random
+def get_random_questions(session_code, subtopic, exclude=None, limit=10):
+    """Helper to fetch a random subset of questions using MongoDB sampling."""
+    query = {'session_code': session_code, 'subtopic': subtopic}
+    if exclude:
+        query['question_id'] = {'$nin': exclude}
+    count = questions_col.count_documents(query)
+    sample_size = min(limit, count)
+    if sample_size == 0:
+        return []
+    pipeline = [{'$match': query}, {'$sample': {'size': sample_size}}]
+    docs = list(questions_col.aggregate(pipeline))
+    return docs
+
 
 def practice_questions(request):
-    """Render the practice questions page with questions in random order."""
+    """Render the practice questions page with an initial batch of questions."""
     session_code = request.GET.get('session_code')
     subtopic = request.GET.get('subtopic')
 
     if not session_code or not subtopic:
         return render(request, 'error.html', {'message': 'Session code and subtopic are required'})
 
-    # Fetch questions from MongoDB matching the filters
-    docs = list(questions_col.find({'session_code': session_code, 'subtopic': subtopic}))
-    random.shuffle(docs)
-    # Convert dicts to simple objects for template compatibility
+    docs = get_random_questions(session_code, subtopic, limit=10)
     questions = [SimpleNamespace(**doc) for doc in docs]
-    return render(request, 'practice_questions.html', {'questions': questions})
+    context = {
+        'questions': questions,
+        'session_code': session_code,
+        'subtopic': subtopic,
+    }
+    return render(request, 'practice_questions.html', context)
+
+
+def fetch_questions(request):
+    """Return additional questions for asynchronous loading."""
+    session_code = request.GET.get('session_code')
+    subtopic = request.GET.get('subtopic')
+    exclude = request.GET.getlist('exclude[]') or request.GET.get('exclude', '')
+    if isinstance(exclude, str):
+        exclude = [e for e in exclude.split(',') if e]
+    limit = int(request.GET.get('limit', 10))
+
+    docs = get_random_questions(session_code, subtopic, exclude, limit)
+    questions = []
+    for doc in docs:
+        questions.append({
+            'question_id': doc.get('question_id'),
+            'image_base64': doc.get('image_base64'),
+            'answer': doc.get('answer'),
+        })
+    return JsonResponse({'questions': questions})
 
 from django.views.decorators.csrf import csrf_exempt
 
