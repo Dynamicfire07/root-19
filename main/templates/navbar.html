@@ -12,6 +12,11 @@
                 <li class="nav-item">
                     <a class="nav-link" href="/question-bank/">Question Bank</a>
                 </li>
+                {% if request.user.is_staff %}
+                <li class="nav-item">
+                    <a class="nav-link" href="/admin/user-activity/">Activity</a>
+                </li>
+                {% endif %}
             </ul>
             <ul class="navbar-nav ms-auto">
                 {% if request.session.user_name %}

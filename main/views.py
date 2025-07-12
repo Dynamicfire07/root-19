@@ -5,7 +5,13 @@ from django.contrib.sessions.models import Session
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.hashers import make_password, check_password
 
-from .db import questions_col, users_col, user_activity_col, get_next_user_id
+from .db import (
+    questions_col,
+    users_col,
+    user_activity_col,
+    get_next_user_id,
+    get_or_create_activity,
+)
 from types import SimpleNamespace
 
 def register(request):
@@ -112,6 +118,9 @@ def practice_questions(request):
     return render(request, 'practice_questions.html', {'questions': questions})
 
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+from django.contrib.admin.views.decorators import staff_member_required
+from datetime import datetime
 
 @csrf_exempt
 def check_answer(request):
@@ -120,4 +129,58 @@ def check_answer(request):
     doc = questions_col.find_one({'question_id': question_id})
     is_correct = doc and doc.get('answer') == selected_answer
     return JsonResponse({'is_correct': is_correct})
+
+
+@csrf_exempt
+@require_POST
+def update_activity(request):
+    """Update or record user activity for a question."""
+    if 'user_name' not in request.session:
+        return JsonResponse({'error': 'Authentication required'}, status=403)
+
+    question_id = request.POST.get('question_id')
+    action = request.POST.get('action')
+    if not question_id or not action:
+        return JsonResponse({'error': 'Missing parameters'}, status=400)
+
+    user = users_col.find_one({'name': request.session['user_name']})
+    if not user:
+        return JsonResponse({'error': 'User not found'}, status=404)
+
+    activity = get_or_create_activity(user['user_id'], question_id)
+    updates = {}
+
+    if action == 'start':
+        updates['time_started'] = datetime.utcnow()
+        user_activity_col.update_one({'_id': activity['_id']}, {
+            '$set': updates,
+            '$inc': {'times_viewed': 1},
+        })
+    elif action == 'answer':
+        correct = request.POST.get('correct') == 'true'
+        time_took = None
+        if activity.get('time_started'):
+            time_took = datetime.utcnow() - activity['time_started']
+            updates['time_took'] = time_took
+        updates.update({'solved': True, 'correct': correct})
+        user_activity_col.update_one({'_id': activity['_id']}, {'$set': updates})
+    elif action == 'bookmark':
+        new_state = not activity.get('bookmarked', False)
+        updates['bookmarked'] = new_state
+        user_activity_col.update_one({'_id': activity['_id']}, {'$set': updates})
+    elif action == 'star':
+        new_state = not activity.get('starred', False)
+        updates['starred'] = new_state
+        user_activity_col.update_one({'_id': activity['_id']}, {'$set': updates})
+    else:
+        return JsonResponse({'error': 'Invalid action'}, status=400)
+
+    return JsonResponse({'status': 'ok', **updates})
+
+
+@staff_member_required
+def user_activity_admin(request):
+    """Display basic listing of user activity records for admins."""
+    records = [SimpleNamespace(**doc) for doc in user_activity_col.find()]
+    return render(request, 'user_activity_admin.html', {'records': records})
 

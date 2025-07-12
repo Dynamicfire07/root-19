@@ -239,6 +239,7 @@
         let currentIndex = 0;
         const questions = $('.question');
         questions.hide().eq(currentIndex).show();
+        recordStart($(questions[currentIndex]).data('question-id'));
 
         $('.answer-btn').click(function () {
             const question = $(this).closest('.question');
@@ -246,6 +247,12 @@
             const correctAnswer = question.data('answer');
             const feedback = question.find('.feedback');
             const isCorrect = selectedAnswer === correctAnswer;
+
+            $.post('/update-activity/', {
+                question_id: question.data('question-id'),
+                action: 'answer',
+                correct: isCorrect
+            });
 
             feedback
                 .text(isCorrect ? 'Correct!' : `Wrong! Correct answer: ${correctAnswer}`)
@@ -256,8 +263,22 @@
             setTimeout(() => feedback.fadeOut(), 2000);
         });
 
-        $('.side-button').click(function () {
+        $('.side-button.star').click(function () {
             $(this).toggleClass('active');
+            const q = $(this).closest('.question');
+            $.post('/update-activity/', {
+                question_id: q.data('question-id'),
+                action: 'star'
+            });
+        });
+
+        $('.side-button.bookmark').click(function () {
+            $(this).toggleClass('active');
+            const q = $(this).closest('.question');
+            $.post('/update-activity/', {
+                question_id: q.data('question-id'),
+                action: 'bookmark'
+            });
         });
 
         $('.reveal').click(function () {
@@ -270,13 +291,22 @@
             questions.eq(currentIndex).hide();
             currentIndex = (currentIndex - 1 + questions.length) % questions.length;
             questions.eq(currentIndex).show();
+            recordStart($(questions[currentIndex]).data('question-id'));
         });
 
         $('#next-btn').click(function () {
             questions.eq(currentIndex).hide();
             currentIndex = (currentIndex + 1) % questions.length;
             questions.eq(currentIndex).show();
+            recordStart($(questions[currentIndex]).data('question-id'));
         });
+
+        function recordStart(qid) {
+            $.post('/update-activity/', {
+                question_id: qid,
+                action: 'start'
+            });
+        }
     </script>
 </body>
 </html>

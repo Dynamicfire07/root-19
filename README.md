@@ -20,6 +20,13 @@ This version uses **MongoDB** for data storage instead of the default SQLite dat
   - Animated hero section.
   - Real-time display of the total number of questions in the database.
 
+## Tracking User Activity
+
+The `user_activity` collection stores per-question data linked by `user_id` and
+`question_id`. It records whether questions are starred or bookmarked, if they
+have been solved correctly and how long the user spent on each. Superusers can
+view these records at `/admin/user-activity/`.
+
 ## Password Security
 
 User passwords are **never stored in plain text**. During registration the
