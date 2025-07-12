@@ -3,6 +3,7 @@ from django.http import JsonResponse
 from django.contrib import messages
 from django.contrib.sessions.models import Session
 from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth.hashers import make_password, check_password
 
 from .db import questions_col, users_col, user_activity_col, get_next_user_id
 from types import SimpleNamespace
@@ -27,12 +28,15 @@ def register(request):
             messages.error(request, "Email is already registered.")
             return redirect('register')
 
+        # Hash the password before storing
+        hashed_password = make_password(password)
+
         # Insert the user document into MongoDB
         users_col.insert_one({
             'user_id': get_next_user_id(),
             'name': name,
             'email': email,
-            'password': password,  # Store raw password (not secure for production)
+            'password': hashed_password,
             'role': role,
             'school': school
         })
@@ -64,8 +68,8 @@ def login_view(request):
     if request.method == 'POST':
         email = request.POST['email']
         password = request.POST['password']
-        user = users_col.find_one({'email': email, 'password': password})
-        if user:
+        user = users_col.find_one({'email': email})
+        if user and check_password(password, user.get('password', '')):
             request.session['user_name'] = user['name']
             messages.success(request, f"Welcome back, {user['name']}!")
             return redirect('home')

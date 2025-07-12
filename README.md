@@ -20,6 +20,14 @@ This version uses **MongoDB** for data storage instead of the default SQLite dat
   - Animated hero section.
   - Real-time display of the total number of questions in the database.
 
+## Password Security
+
+User passwords are **never stored in plain text**. During registration the
+application hashes the password using Django's PBKDF2 implementation with a
+unique salt for each user. At login the hash is verified using the same
+algorithm. Storing hashes instead of raw passwords helps protect user
+credentials even if the database is compromised.
+
 ## Prerequisites
 
 Make sure you have the following installed:
