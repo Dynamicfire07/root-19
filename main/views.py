@@ -180,7 +180,22 @@ def update_activity(request):
 
 @staff_member_required
 def user_activity_admin(request):
-    """Display basic listing of user activity records for admins."""
+    """Display user activity records with summary statistics for admins."""
     records = [SimpleNamespace(**doc) for doc in user_activity_col.find()]
-    return render(request, 'user_activity_admin.html', {'records': records})
+
+    summary = {
+        "total_users": users_col.count_documents({}),
+        "total_questions": questions_col.count_documents({}),
+        "total_records": user_activity_col.count_documents({}),
+        "solved": user_activity_col.count_documents({"solved": True}),
+        "correct": user_activity_col.count_documents({"correct": True}),
+        "starred": user_activity_col.count_documents({"starred": True}),
+        "bookmarked": user_activity_col.count_documents({"bookmarked": True}),
+    }
+
+    context = {
+        "records": records,
+        "summary": summary,
+    }
+    return render(request, "user_activity_admin.html", context)
 
