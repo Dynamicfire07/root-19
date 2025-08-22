@@ -2,7 +2,7 @@
 
 A web-based quiz application built with Django that allows users to register, log in, practice questions, and track progress. This project features a dynamic and user-friendly interface, including a hero section, session-based authentication, and animated feedback.
 
-This version uses **MongoDB** for data storage instead of the default SQLite database. All data is stored in MongoDB collections and accessed via `pymongo`.
+This version uses **Supabase (PostgreSQL)** for data storage instead of MongoDB. All data is stored in PostgreSQL tables and accessed with `psycopg2`.
 
 ## Features
 
@@ -22,7 +22,7 @@ This version uses **MongoDB** for data storage instead of the default SQLite dat
 
 ## Tracking User Activity
 
-The `user_activity` collection stores per-question data linked by `user_id` and
+The `user_activity` table stores per-question data linked by `user_id` and
 `question_id`. It records whether questions are starred or bookmarked, if they
 have been solved correctly and how long the user spent on each. Superusers can
 view these records at `/admin/user-activity/`.
@@ -41,8 +41,8 @@ Make sure you have the following installed:
 
 - Python 3.x
 - Django 4.x
-- MongoDB server (or Atlas cluster)
-- pymongo
+- PostgreSQL server (Supabase)
+- psycopg2-binary
 
 ## Installation
 

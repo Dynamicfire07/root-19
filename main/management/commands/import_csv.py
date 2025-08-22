@@ -1,12 +1,12 @@
 import csv
 import sys
 from django.core.management.base import BaseCommand
-from main.db import questions_col
+from main.db import execute
 
 csv.field_size_limit(sys.maxsize)
 
 class Command(BaseCommand):
-    help = 'Import questions from a CSV file into MongoDB'
+    help = 'Import questions from a CSV file into PostgreSQL'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -35,21 +35,40 @@ class Command(BaseCommand):
                         year_str = row.get('Year')
                         year = int(year_str) if year_str and year_str.isdigit() else None
 
-                        update_result = questions_col.update_one(
-                            {'question_id': question_id},
-                            {'$set': {
-                                'session_code': row.get('SessionCode', '').strip(),
-                                'session': row.get('Session', '').strip(),
-                                'year': year,
-                                'paper_code': row.get('PaperCode', '').strip(),
-                                'variant': row.get('Variant', '').strip(),
-                                'file_question': row.get('File_Question', '').strip(),
-                                'subtopic': row.get('Subtopic', '').strip(),
-                                'extracted_text': row.get('ExtractedText', '').strip(),
-                                'image_base64': row.get('ImageBase64', '').strip(),
-                                'answer': row.get('Answer', '').strip(),
-                            }},
-                            upsert=True
+                        execute(
+                            """
+                            INSERT INTO questions (
+                                question_id, session_code, session, year,
+                                paper_code, variant, file_question, subtopic,
+                                extracted_text, image_base64, answer
+                            ) VALUES (
+                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                            )
+                            ON CONFLICT (question_id) DO UPDATE SET
+                                session_code = EXCLUDED.session_code,
+                                session = EXCLUDED.session,
+                                year = EXCLUDED.year,
+                                paper_code = EXCLUDED.paper_code,
+                                variant = EXCLUDED.variant,
+                                file_question = EXCLUDED.file_question,
+                                subtopic = EXCLUDED.subtopic,
+                                extracted_text = EXCLUDED.extracted_text,
+                                image_base64 = EXCLUDED.image_base64,
+                                answer = EXCLUDED.answer
+                            """,
+                            (
+                                question_id,
+                                row.get('SessionCode', '').strip(),
+                                row.get('Session', '').strip(),
+                                year,
+                                row.get('PaperCode', '').strip(),
+                                row.get('Variant', '').strip(),
+                                row.get('File_Question', '').strip(),
+                                row.get('Subtopic', '').strip(),
+                                row.get('ExtractedText', '').strip(),
+                                row.get('ImageBase64', '').strip(),
+                                row.get('Answer', '').strip(),
+                            ),
                         )
 
                         imported_count += 1
