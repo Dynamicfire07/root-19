@@ -6,3 +6,6 @@ lib
 include
 venv
 compelted.csv
+.env
+__pycache__/
+*.pyc

@@ -1,18 +1,12 @@
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from django.contrib import messages
-from django.contrib.sessions.models import Session
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.hashers import make_password, check_password
+from django.utils import timezone
 
-from .db import (
-    questions_col,
-    users_col,
-    user_activity_col,
-    get_next_user_id,
-    get_or_create_activity,
-)
-from types import SimpleNamespace
+from .models import Question, User, UserActivity, get_next_user_id, get_or_create_activity
+import random
 
 def register(request):
     """Handle user registration."""
@@ -29,23 +23,24 @@ def register(request):
             messages.error(request, "Passwords do not match.")
             return redirect('register')
 
-        # Check if user already exists in the users collection
-        if users_col.find_one({'email': email}):
+        # Check if user already exists
+        if User.objects.filter(email=email).exists():
             messages.error(request, "Email is already registered.")
             return redirect('register')
 
         # Hash the password before storing
         hashed_password = make_password(password)
 
-        # Insert the user document into MongoDB
-        users_col.insert_one({
-            'user_id': get_next_user_id(),
-            'name': name,
-            'email': email,
-            'password': hashed_password,
-            'role': role,
-            'school': school
-        })
+        # Create the user in PostgreSQL
+        User.objects.create(
+            user_id=get_next_user_id(),
+            name=name,
+            email=email,
+            password=hashed_password,
+            confirmation_password=hashed_password,
+            role=role,
+            school=school,
+        )
         messages.success(request, "Registration successful! Please log in.")
         return redirect('login')
 
@@ -65,8 +60,8 @@ def logout_view(request):
     
     return redirect('login')
 def home(request):
-    """Render the home page with the question count from MongoDB."""
-    total_questions = questions_col.count_documents({})
+    """Render the home page with the question count from PostgreSQL."""
+    total_questions = Question.objects.count()
     return render(request, 'home.html', {'total_questions': total_questions})
 
 def login_view(request):
@@ -74,10 +69,10 @@ def login_view(request):
     if request.method == 'POST':
         email = request.POST['email']
         password = request.POST['password']
-        user = users_col.find_one({'email': email})
-        if user and check_password(password, user.get('password', '')):
-            request.session['user_name'] = user['name']
-            messages.success(request, f"Welcome back, {user['name']}!")
+        user = User.objects.filter(email=email).first()
+        if user and check_password(password, user.password):
+            request.session['user_name'] = user.name
+            messages.success(request, f"Welcome back, {user.name}!")
             return redirect('home')
         messages.error(request, "Invalid email or password.")
         return redirect('login')
@@ -85,7 +80,7 @@ def login_view(request):
     return render(request, 'login.html')
 def question_bank(request):
     """Render the initial page with session codes."""
-    session_codes = questions_col.distinct('session_code')
+    session_codes = list(Question.objects.values_list('session_code', flat=True).distinct())
     return render(request, 'question_bank.html', {'session_codes': session_codes})
 
 def get_subtopics(request):
@@ -94,13 +89,15 @@ def get_subtopics(request):
     if not session_code:
         return JsonResponse({'error': 'Session code is required'}, status=400)
 
-    subtopics = questions_col.distinct('subtopic', {'session_code': session_code})
+    subtopics = list(
+        Question.objects.filter(session_code=session_code)
+        .values_list('subtopic', flat=True)
+        .distinct()
+    )
     if not subtopics:
         return JsonResponse({'error': 'No subtopics found for this session code'}, status=404)
 
-    return JsonResponse({'subtopics': list(subtopics)})
-
-import random
+    return JsonResponse({'subtopics': subtopics})
 
 def practice_questions(request):
     """Render the practice questions page with questions in random order."""
@@ -110,24 +107,21 @@ def practice_questions(request):
     if not session_code or not subtopic:
         return render(request, 'error.html', {'message': 'Session code and subtopic are required'})
 
-    # Fetch questions from MongoDB matching the filters
-    docs = list(questions_col.find({'session_code': session_code, 'subtopic': subtopic}))
-    random.shuffle(docs)
-    # Convert dicts to simple objects for template compatibility
-    questions = [SimpleNamespace(**doc) for doc in docs]
+    # Fetch questions matching the filters
+    questions = list(Question.objects.filter(session_code=session_code, subtopic=subtopic))
+    random.shuffle(questions)
     return render(request, 'practice_questions.html', {'questions': questions})
 
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.contrib.admin.views.decorators import staff_member_required
-from datetime import datetime
 
 @csrf_exempt
 def check_answer(request):
     question_id = request.POST.get('question_id')
     selected_answer = request.POST.get('selected_answer')
-    doc = questions_col.find_one({'question_id': question_id})
-    is_correct = doc and doc.get('answer') == selected_answer
+    doc = Question.objects.filter(question_id=question_id).first()
+    is_correct = doc and doc.answer == selected_answer
     return JsonResponse({'is_correct': is_correct})
 
 
@@ -143,35 +137,42 @@ def update_activity(request):
     if not question_id or not action:
         return JsonResponse({'error': 'Missing parameters'}, status=400)
 
-    user = users_col.find_one({'name': request.session['user_name']})
+    user = User.objects.filter(name=request.session['user_name']).first()
     if not user:
         return JsonResponse({'error': 'User not found'}, status=404)
 
-    activity = get_or_create_activity(user['user_id'], question_id)
+    question = Question.objects.filter(question_id=question_id).first()
+    if not question:
+        return JsonResponse({'error': 'Question not found'}, status=404)
+
+    activity = get_or_create_activity(user, question)
     updates = {}
 
     if action == 'start':
-        updates['time_started'] = datetime.utcnow()
-        user_activity_col.update_one({'_id': activity['_id']}, {
-            '$set': updates,
-            '$inc': {'times_viewed': 1},
-        })
+        activity.time_started = timezone.now()
+        activity.times_viewed += 1
+        activity.save()
+        updates['time_started'] = activity.time_started
     elif action == 'answer':
         correct = request.POST.get('correct') == 'true'
-        time_took = None
-        if activity.get('time_started'):
-            time_took = datetime.utcnow() - activity['time_started']
-            updates['time_took'] = time_took
-        updates.update({'solved': True, 'correct': correct})
-        user_activity_col.update_one({'_id': activity['_id']}, {'$set': updates})
+        if activity.time_started:
+            activity.time_took = timezone.now() - activity.time_started
+        activity.solved = True
+        activity.correct = correct
+        activity.save()
+        updates = {
+            'solved': activity.solved,
+            'correct': activity.correct,
+            'time_took': activity.time_took,
+        }
     elif action == 'bookmark':
-        new_state = not activity.get('bookmarked', False)
-        updates['bookmarked'] = new_state
-        user_activity_col.update_one({'_id': activity['_id']}, {'$set': updates})
+        activity.bookmarked = not activity.bookmarked
+        activity.save()
+        updates['bookmarked'] = activity.bookmarked
     elif action == 'star':
-        new_state = not activity.get('starred', False)
-        updates['starred'] = new_state
-        user_activity_col.update_one({'_id': activity['_id']}, {'$set': updates})
+        activity.starred = not activity.starred
+        activity.save()
+        updates['starred'] = activity.starred
     else:
         return JsonResponse({'error': 'Invalid action'}, status=400)
 
@@ -181,16 +182,16 @@ def update_activity(request):
 @staff_member_required
 def user_activity_admin(request):
     """Display user activity records with summary statistics for admins."""
-    records = [SimpleNamespace(**doc) for doc in user_activity_col.find()]
+    records = list(UserActivity.objects.all())
 
     summary = {
-        "total_users": users_col.count_documents({}),
-        "total_questions": questions_col.count_documents({}),
-        "total_records": user_activity_col.count_documents({}),
-        "solved": user_activity_col.count_documents({"solved": True}),
-        "correct": user_activity_col.count_documents({"correct": True}),
-        "starred": user_activity_col.count_documents({"starred": True}),
-        "bookmarked": user_activity_col.count_documents({"bookmarked": True}),
+        "total_users": User.objects.count(),
+        "total_questions": Question.objects.count(),
+        "total_records": UserActivity.objects.count(),
+        "solved": UserActivity.objects.filter(solved=True).count(),
+        "correct": UserActivity.objects.filter(correct=True).count(),
+        "starred": UserActivity.objects.filter(starred=True).count(),
+        "bookmarked": UserActivity.objects.filter(bookmarked=True).count(),
     }
 
     context = {

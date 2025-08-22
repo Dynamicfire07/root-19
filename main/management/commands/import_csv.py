@@ -1,12 +1,12 @@
 import csv
 import sys
 from django.core.management.base import BaseCommand
-from main.db import questions_col
+from main.models import Question
 
 csv.field_size_limit(sys.maxsize)
 
 class Command(BaseCommand):
-    help = 'Import questions from a CSV file into MongoDB'
+    help = 'Import questions from a CSV file into PostgreSQL'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -35,9 +35,9 @@ class Command(BaseCommand):
                         year_str = row.get('Year')
                         year = int(year_str) if year_str and year_str.isdigit() else None
 
-                        update_result = questions_col.update_one(
-                            {'question_id': question_id},
-                            {'$set': {
+                        Question.objects.update_or_create(
+                            question_id=question_id,
+                            defaults={
                                 'session_code': row.get('SessionCode', '').strip(),
                                 'session': row.get('Session', '').strip(),
                                 'year': year,
@@ -48,8 +48,7 @@ class Command(BaseCommand):
                                 'extracted_text': row.get('ExtractedText', '').strip(),
                                 'image_base64': row.get('ImageBase64', '').strip(),
                                 'answer': row.get('Answer', '').strip(),
-                            }},
-                            upsert=True
+                            },
                         )
 
                         imported_count += 1
