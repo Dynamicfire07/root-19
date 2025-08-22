@@ -13,4 +13,3 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),
     path('staff/user-activity/', views.user_activity_admin, name='user_activity_admin'),
 ]
-
