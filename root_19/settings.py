@@ -15,10 +15,6 @@ import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-SECRET_KEY="mongodb+srv://shauryajain377:root19@root19.4ofompm.mongodb.net/?retryWrites=true&w=majority&appName=root19"
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-change-this-to-a-unique-key'
@@ -76,18 +72,26 @@ WSGI_APPLICATION = 'root_19.wsgi.application'
 
 
 # Database
-# https://docs.djangoproject.com/en/5.1/ref/settings/#databases
+# Configure PostgreSQL (Supabase) as the default database. The credentials are
+# hard-coded for now but should be moved to environment variables in
+# production.
+
+DB_HOST = 'db.vzmbwobdlddxzgqfhnsh.supabase.co'
+DB_PORT = 5432
+DB_NAME = 'postgres'
+DB_USER = 'postgres'
+DB_PASSWORD = 'shaishavroot19'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': DB_NAME,
+        'USER': DB_USER,
+        'PASSWORD': DB_PASSWORD,
+        'HOST': DB_HOST,
+        'PORT': DB_PORT,
     }
 }
-
-# MongoDB configuration. The relational DATABASES setting above is kept for
-MONGO_URI = os.getenv('MONGO_URI', 'mongodb+srv://shauryajain377:root19@root19.4ofompm.mongodb.net/?retryWrites=true&w=majority&appName=root19')
-MONGO_DB_NAME = os.getenv('MONGO_DB_NAME', 'root19')
 
 
 # Password validation

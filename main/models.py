@@ -1,8 +1,7 @@
-"""Data structures representing MongoDB documents.
+"""Dataclass representations of PostgreSQL rows.
 
-This file previously contained Django ORM models using SQL terminology. It has
-been simplified to dataclass representations that map directly to MongoDB
-collections.
+These structures replace the previous MongoDB document models and mirror the
+tables now stored in Supabase (PostgreSQL).
 """
 
 from dataclasses import dataclass

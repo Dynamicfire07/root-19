@@ -6,9 +6,9 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.hashers import make_password, check_password
 
 from .db import (
-    questions_col,
-    users_col,
-    user_activity_col,
+    query_one,
+    query_all,
+    execute,
     get_next_user_id,
     get_or_create_activity,
 )
@@ -29,23 +29,29 @@ def register(request):
             messages.error(request, "Passwords do not match.")
             return redirect('register')
 
-        # Check if user already exists in the users collection
-        if users_col.find_one({'email': email}):
+        # Check if user already exists in the users table
+        if query_one("SELECT 1 FROM users WHERE email = %s", (email,)):
             messages.error(request, "Email is already registered.")
             return redirect('register')
 
         # Hash the password before storing
         hashed_password = make_password(password)
 
-        # Insert the user document into MongoDB
-        users_col.insert_one({
-            'user_id': get_next_user_id(),
-            'name': name,
-            'email': email,
-            'password': hashed_password,
-            'role': role,
-            'school': school
-        })
+        # Insert the user into PostgreSQL
+        execute(
+            """
+            INSERT INTO users (user_id, name, email, password, role, school)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (
+                get_next_user_id(),
+                name,
+                email,
+                hashed_password,
+                role,
+                school,
+            ),
+        )
         messages.success(request, "Registration successful! Please log in.")
         return redirect('login')
 
@@ -65,16 +71,16 @@ def logout_view(request):
     
     return redirect('login')
 def home(request):
-    """Render the home page with the question count from MongoDB."""
-    total_questions = questions_col.count_documents({})
+    """Render the home page with the question count."""
+    total_questions = query_one("SELECT COUNT(*) AS cnt FROM questions")['cnt']
     return render(request, 'home.html', {'total_questions': total_questions})
 
 def login_view(request):
-    """Handle login using the users collection."""
+    """Handle login using the users table."""
     if request.method == 'POST':
         email = request.POST['email']
         password = request.POST['password']
-        user = users_col.find_one({'email': email})
+        user = query_one("SELECT * FROM users WHERE email = %s", (email,))
         if user and check_password(password, user.get('password', '')):
             request.session['user_name'] = user['name']
             messages.success(request, f"Welcome back, {user['name']}!")
@@ -85,7 +91,8 @@ def login_view(request):
     return render(request, 'login.html')
 def question_bank(request):
     """Render the initial page with session codes."""
-    session_codes = questions_col.distinct('session_code')
+    rows = query_all("SELECT DISTINCT session_code FROM questions")
+    session_codes = [r['session_code'] for r in rows]
     return render(request, 'question_bank.html', {'session_codes': session_codes})
 
 def get_subtopics(request):
@@ -94,7 +101,11 @@ def get_subtopics(request):
     if not session_code:
         return JsonResponse({'error': 'Session code is required'}, status=400)
 
-    subtopics = questions_col.distinct('subtopic', {'session_code': session_code})
+    rows = query_all(
+        "SELECT DISTINCT subtopic FROM questions WHERE session_code = %s",
+        (session_code,),
+    )
+    subtopics = [r['subtopic'] for r in rows]
     if not subtopics:
         return JsonResponse({'error': 'No subtopics found for this session code'}, status=404)
 
@@ -110,8 +121,11 @@ def practice_questions(request):
     if not session_code or not subtopic:
         return render(request, 'error.html', {'message': 'Session code and subtopic are required'})
 
-    # Fetch questions from MongoDB matching the filters
-    docs = list(questions_col.find({'session_code': session_code, 'subtopic': subtopic}))
+    # Fetch questions from PostgreSQL matching the filters
+    docs = query_all(
+        "SELECT * FROM questions WHERE session_code = %s AND subtopic = %s",
+        (session_code, subtopic),
+    )
     random.shuffle(docs)
     # Convert dicts to simple objects for template compatibility
     questions = [SimpleNamespace(**doc) for doc in docs]
@@ -126,7 +140,7 @@ from datetime import datetime
 def check_answer(request):
     question_id = request.POST.get('question_id')
     selected_answer = request.POST.get('selected_answer')
-    doc = questions_col.find_one({'question_id': question_id})
+    doc = query_one("SELECT answer FROM questions WHERE question_id = %s", (question_id,))
     is_correct = doc and doc.get('answer') == selected_answer
     return JsonResponse({'is_correct': is_correct})
 
@@ -143,7 +157,7 @@ def update_activity(request):
     if not question_id or not action:
         return JsonResponse({'error': 'Missing parameters'}, status=400)
 
-    user = users_col.find_one({'name': request.session['user_name']})
+    user = query_one("SELECT * FROM users WHERE name = %s", (request.session['user_name'],))
     if not user:
         return JsonResponse({'error': 'User not found'}, status=404)
 
@@ -151,11 +165,12 @@ def update_activity(request):
     updates = {}
 
     if action == 'start':
-        updates['time_started'] = datetime.utcnow()
-        user_activity_col.update_one({'_id': activity['_id']}, {
-            '$set': updates,
-            '$inc': {'times_viewed': 1},
-        })
+        now = datetime.utcnow()
+        updates['time_started'] = now
+        execute(
+            "UPDATE user_activity SET time_started = %s, times_viewed = times_viewed + 1 WHERE user_id = %s AND question_id = %s",
+            (now, user['user_id'], question_id),
+        )
     elif action == 'answer':
         correct = request.POST.get('correct') == 'true'
         time_took = None
@@ -163,15 +178,24 @@ def update_activity(request):
             time_took = datetime.utcnow() - activity['time_started']
             updates['time_took'] = time_took
         updates.update({'solved': True, 'correct': correct})
-        user_activity_col.update_one({'_id': activity['_id']}, {'$set': updates})
+        execute(
+            "UPDATE user_activity SET solved = %s, correct = %s, time_took = %s WHERE user_id = %s AND question_id = %s",
+            (True, correct, time_took, user['user_id'], question_id),
+        )
     elif action == 'bookmark':
         new_state = not activity.get('bookmarked', False)
         updates['bookmarked'] = new_state
-        user_activity_col.update_one({'_id': activity['_id']}, {'$set': updates})
+        execute(
+            "UPDATE user_activity SET bookmarked = %s WHERE user_id = %s AND question_id = %s",
+            (new_state, user['user_id'], question_id),
+        )
     elif action == 'star':
         new_state = not activity.get('starred', False)
         updates['starred'] = new_state
-        user_activity_col.update_one({'_id': activity['_id']}, {'$set': updates})
+        execute(
+            "UPDATE user_activity SET starred = %s WHERE user_id = %s AND question_id = %s",
+            (new_state, user['user_id'], question_id),
+        )
     else:
         return JsonResponse({'error': 'Invalid action'}, status=400)
 
@@ -181,16 +205,16 @@ def update_activity(request):
 @staff_member_required
 def user_activity_admin(request):
     """Display user activity records with summary statistics for admins."""
-    records = [SimpleNamespace(**doc) for doc in user_activity_col.find()]
+    records = [SimpleNamespace(**row) for row in query_all("SELECT * FROM user_activity")]
 
     summary = {
-        "total_users": users_col.count_documents({}),
-        "total_questions": questions_col.count_documents({}),
-        "total_records": user_activity_col.count_documents({}),
-        "solved": user_activity_col.count_documents({"solved": True}),
-        "correct": user_activity_col.count_documents({"correct": True}),
-        "starred": user_activity_col.count_documents({"starred": True}),
-        "bookmarked": user_activity_col.count_documents({"bookmarked": True}),
+        "total_users": query_one("SELECT COUNT(*) AS cnt FROM users")['cnt'],
+        "total_questions": query_one("SELECT COUNT(*) AS cnt FROM questions")['cnt'],
+        "total_records": query_one("SELECT COUNT(*) AS cnt FROM user_activity")['cnt'],
+        "solved": query_one("SELECT COUNT(*) AS cnt FROM user_activity WHERE solved = TRUE")['cnt'],
+        "correct": query_one("SELECT COUNT(*) AS cnt FROM user_activity WHERE correct = TRUE")['cnt'],
+        "starred": query_one("SELECT COUNT(*) AS cnt FROM user_activity WHERE starred = TRUE")['cnt'],
+        "bookmarked": query_one("SELECT COUNT(*) AS cnt FROM user_activity WHERE bookmarked = TRUE")['cnt'],
     }
 
     context = {
