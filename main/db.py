@@ -7,11 +7,12 @@ from django.conf import settings
 # Establish a global connection to the Supabase (PostgreSQL) database. The
 # credentials are currently hard-coded in ``settings.py``.
 conn = psycopg2.connect(
-    host=settings.DB_HOST,
-    port=settings.DB_PORT,
-    dbname=settings.DB_NAME,
-    user=settings.DB_USER,
-    password=settings.DB_PASSWORD,
+    host="aws-1-ap-south-1.pooler.supabase.com",
+    port=6543,
+    dbname="postgres",
+    user="postgres.vzmbwobdlddxzgqfhnsh",
+    password="shaishavroot19",
+    sslmode="require"
 )
 conn.autocommit = True
 

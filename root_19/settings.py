@@ -81,18 +81,25 @@ DB_PORT = 5432
 DB_NAME = 'postgres'
 DB_USER = 'postgres'
 DB_PASSWORD = 'shaishavroot19'
-
+user="postgres.vzmbwobdlddxzgqfhnsh"
+password="shaishavroot19" 
+host="aws-1-ap-south-1.pooler.supabase.com"
+port="6543"
+dbname="postgres"
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': DB_NAME,
-        'USER': DB_USER,
-        'PASSWORD': DB_PASSWORD,
-        'HOST': DB_HOST,
-        'PORT': DB_PORT,
+        'NAME': 'postgres',
+        'USER': 'postgres.vzmbwobdlddxzgqfhnsh',
+        'PASSWORD': 'shaishavroot19',
+        'HOST': 'aws-1-ap-south-1.pooler.supabase.com',
+        'PORT': 6543,
+        'OPTIONS': {
+            'sslmode': 'require',
+        },
     }
 }
-
+DATABASE_URL="postgresql://postgres:shaishavroot19@db.vzmbwobdlddxzgqfhnsh.supabase.co:5432/postgres"
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
@@ -137,3 +144,20 @@ STATIC_URL = '/static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Email settings (hardcoded for now)
+# Development: print emails to the console
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+DEFAULT_FROM_EMAIL = 'shauryajain377@gmail.com'
+
+# Recipient(s) for bug reports
+BUG_REPORT_RECIPIENTS = ['shauryajain377@gmail.com']
+
+# --- Optional SMTP example (uncomment and fill to enable real emails) ---
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'shauryajain377@gmail.com'
+EMAIL_HOST_PASSWORD = 'rcfqpdojhwimumcy'
+# DEFAULT_FROM_EMAIL = 'Root19 Bug Reporter <your_email@gmail.com>'

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Report a Bug</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    body { background: #f4f6f9; }
+    .page-header { display:flex; align-items:center; gap:.5rem; }
+    .card { border-radius: 14px; box-shadow: 0 6px 18px rgba(0,0,0,.06); }
+    .form-label .hint { font-weight: normal; color:#6c757d; }
+  </style>
+  <!-- Optional: add structured data for better context later -->
+</head>
+<body>
+  {% include 'navbar.html' %}
+
+  <div class="container py-4">
+    <div class="row justify-content-center">
+      <div class="col-lg-7 col-md-9">
+        <div class="mb-3 page-header">
+          <i class="bi bi-bug-fill text-danger fs-3"></i>
+          <div>
+            <h3 class="mb-0">Report a Bug</h3>
+            <small class="text-muted">Spotted something off? Tell us what broke.</small>
+          </div>
+        </div>
+
+        {% if messages %}
+          {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}" role="alert">{{ message }}</div>
+          {% endfor %}
+        {% endif %}
+
+        <div class="card">
+          <div class="card-body p-4">
+            <form method="post" action="">
+              {% csrf_token %}
+
+              <div class="mb-3">
+                <label for="email" class="form-label">Your email <span class="hint">(optional)</span></label>
+                <div class="input-group">
+                  <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                  <input type="email" class="form-control" id="email" name="email" placeholder="you@example.com">
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label for="subject" class="form-label">Subject <span class="hint">(optional)</span></label>
+                <div class="input-group">
+                  <span class="input-group-text"><i class="bi bi-chat-left-text"></i></span>
+                  <input type="text" class="form-control" id="subject" name="subject" placeholder="Short summary">
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label for="message" class="form-label">What’s the issue?</label>
+                <textarea class="form-control" id="message" name="message" rows="6" placeholder="Describe the steps, what you expected, and what happened..." required></textarea>
+                <div class="form-text">Include steps to reproduce, screenshots, or error messages if possible.</div>
+              </div>
+
+              <input type="hidden" name="page_url" value="{{ page_url }}">
+
+              <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                  <i class="bi bi-send-fill me-1"></i> Send Report
+                </button>
+                <a href="/" class="btn btn-outline-secondary">Cancel</a>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="text-center text-muted mt-3">
+          <small>We’ll email only if we need more details.</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  </body>
+  </html>

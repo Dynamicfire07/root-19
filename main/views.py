@@ -135,6 +135,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.contrib.admin.views.decorators import staff_member_required
 from datetime import datetime
+from django.core.mail import send_mail
+from django.conf import settings
 
 @csrf_exempt
 def check_answer(request):
@@ -223,3 +225,49 @@ def user_activity_admin(request):
     }
     return render(request, "user_activity_admin.html", context)
 
+
+def report_bug(request):
+    """Simple bug report form that emails the maintainer."""
+    if request.method == 'POST':
+        reporter_email = request.POST.get('email', '').strip()
+        subject = request.POST.get('subject', '').strip() or 'Bug report'
+        message = request.POST.get('message', '').strip()
+        page_url = request.POST.get('page_url', '').strip() or request.META.get('HTTP_REFERER', '')
+
+        if not message:
+            messages.error(request, 'Please describe the issue.')
+            return redirect('report_bug')
+
+        user_name = request.session.get('user_name')
+        composed_subject = f"[Bug Report] {subject}"
+        composed_body = (
+            f"From: {reporter_email or 'anonymous'}\n"
+            f"User: {user_name or 'guest'}\n"
+            f"Page: {page_url}\n\n"
+            f"Message:\n{message}\n"
+        )
+
+        try:
+            sent = send_mail(
+                composed_subject,
+                composed_body,
+                settings.DEFAULT_FROM_EMAIL,
+                getattr(settings, 'BUG_REPORT_RECIPIENTS', ['shauryajain377@gmail.com']),
+                fail_silently=False,
+            )
+            # Print a confirmation in the server terminal
+            try:
+                print(f"[report_bug] Email sent={bool(sent)} to={getattr(settings, 'BUG_REPORT_RECIPIENTS', [])} subject='{composed_subject}'")
+            except Exception:
+                pass
+            messages.success(request, 'Thanks! Your report has been sent.')
+            return redirect('home')
+        except Exception as e:
+            messages.error(request, f"Could not send report: {e}")
+            return redirect('report_bug')
+
+    # GET request
+    context = {
+        'page_url': request.META.get('HTTP_REFERER', ''),
+    }
+    return render(request, 'report_bug.html', context)

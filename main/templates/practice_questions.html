@@ -204,6 +204,9 @@
             <button id="next-btn" class="btn btn-primary">Next</button>
         </div>
     </div>
+    <div class="container mt-3 text-center">
+        <small class="text-muted">See an issue? <a href="/report-bug/">Report a bug</a>.</small>
+    </div>
 
     <!-- Modal -->
     <div class="modal fade" id="revealAnswerModal" tabindex="-1" aria-labelledby="revealAnswerLabel" aria-hidden="true">
@@ -247,7 +250,6 @@
             const correctAnswer = question.data('answer');
             const feedback = question.find('.feedback');
             const isCorrect = selectedAnswer === correctAnswer;
-
             $.post('/update-activity/', {
                 question_id: question.data('question-id'),
                 action: 'answer',
